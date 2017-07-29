@@ -1,0 +1,936 @@
+---
+---
+#### ATP Tour 2012
+
+##### by Tobi Kasali
+
+========================================================
+
+```{r global_options, include=FALSE}
+
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=FALSE, warning=FALSE, message=FALSE, tidy=TRUE )
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using in your analysis in this code
+# chunk.
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk. This
+# prevents the code from displaying in the knitted HTML output. You should set
+# echo=FALSE for all code chunks in your file, unless it makes sense for your
+# report to show the code that generated a particular plot.
+
+# The other parameters for "message" and "warning" should also be set to FALSE
+# for other code chunks once you have verified that each plot comes out as you
+# want it to. This will clean up the flow of your report.
+
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(tidyr)
+library(reshape2)
+library(lubridate)
+library(GGally)
+#windowsFonts(Times=windowsFont("TT Arial"))
+```
+### Abstract
+
+Tennis is one of my favorite sports and although i don't play very well, I do watch some tennis matches. Roger Federer is my favorite player and he's had a big resurgence this year which has got people wondering - Has he changed his game? What is he doing differently? I had been on Kaggle and seen the ATP dataset and I thought I'll use this for my project. 
+I picked the data from 2012 because I wanted one far enough for me to have forgotten what actually happened in that season. So who won the most matches that year?  What are the factors that influence players winning matches?  This report explores a dataset containing results for Tennis players on the ATP tour in 2012.
+
+### Dataset
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+atp_2012 <- read.csv('atp_matches_2012.csv')
+
+```
+#### Summary of the Dataset
+
+The dataset consists of 49 variables with about 3025 observations. Each observation represents matches played on the ATP Tennis Tour in 2012. 
+
+As each oberservation is a match, most variables come in twos; one for the winner and one for the loser. This is why there are 49 variables but actually 30 distinct variables with 19 variables with are doubled. 
+
+The singular variables are:
+
+* torunament name, surface, tournament_id, draw_size, tournament_level,tournament_datematch_num, best_of, round, minutes, and score.
+
+The duplcated variables are:(prefixed wih winner/w or loser/l) 
+
+* id, seed,entry,name,hand, ht, ioc,age,rank,rank_points,ace,df,svpt,1st1n,2ndIn, 1stWon, 2ndWon, SvGms,bpSaved,bpFaced and ace.
+
+
+
+```{r echo=FALSE, Univariate_Plots}
+
+str(atp_2012)
+
+```
+As previously noted, each observarion is a match between two players. My first interest is the number of wins for each player which is not a variable! However, I should be able to get that from the winner_name column.
+
+#### Player Wins  - Who won the most matches in 2012?
+
+There are at least 305 match winners so the x-axis is a bit over crowded.I'll look at a summary of the winner_name column and use that to subset players.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE,include=FALSE}
+summary(atp_2012$winner_name)
+```
+
+Running summary on the winner column gives me the counts(wins) for each player however, it doesn't display median or quantile values. I'll create a dataframe with the players and count the number of wins so i can have a better look at the distribution of data.
+
+```{r, warning=FALSE, message=FALSE}
+
+players_win <- as.data.frame(table(atp_2012$winner_name))
+
+###Change the name of the columns
+names(players_win)[names(players_win) =="Var1"] <- "player_name"
+names(players_win)[names(players_win) =="Freq"] <- "wins"
+str(players_win)
+summary(players_win)
+```
+
+Looking at the summary of wins, we have a median of 3 and an average of 9 wins per player. 75% of the players have 13 wins or less.  if I ordered the data and it would be  a very long tail.
+
+25% of players or lower had only one win and I will start by plotting with player with over 3 wins which is the median.
+
+```{r, echo=FALSE}
+#windowsFonts(Times=windowsFont("TT Arial"))
+
+F = 3
+p <- ggplot(subset(players_win, wins > F), aes(x = player_name, y = wins)) +
+geom_bar(stat="identity", color = I('black'), fill = I('#099DD9'))
+p <- p + theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.2, 
+                                          family="Times",  colour="darkred"))
+p <- p + scale_y_continuous(breaks = seq(0, 80, 5))
+p
+
+
+```
+
+Looking at the peaks in this graph, you can see that a few players have a large number of wins. It's  a bit difficult to scan along the lines and pick out the highest peaks. I think flipping the same data on the side and ordering with the highest number of wins first might help. 
+I'll also decrease the sample of data so we can see the highest winners more clearly. I'll look at players with more than the average number of wins.
+
+```{r}
+
+## Add winner country and show nationality 
+
+players_ioc <- atp_2012 %>% 
+                     select(winner_name,winner_ioc) %>%
+                     distinct(winner_name,winner_ioc) %>%
+                     filter(winner_name %in% players_win$player_name) 
+
+names(players_ioc)[names(players_ioc) =="winner_name"] <-"player_name"
+###Merge the Data frame
+players_win_ioc <-  merge(players_ioc,players_win,
+                          by ="player_name", all.y= TRUE)
+
+
+F = 11
+p <- ggplot(subset(players_win_ioc, wins > F),
+            aes(x = reorder(player_name, wins), y = wins))
+p <- p + geom_bar(width=1, colour="white",stat="identity")
+p <- p + geom_text(aes(label=wins), color="white", hjust=1, size=3)
+p <- p + theme(axis.text.x = element_text(hjust=1, vjust=0.2), 
+               legend.position="none")
+p <- p + coord_flip()
+p
+
+
+```
+
+The players with the highest number of wins are clearer to see this way. The players with the top 10 wins from 2012 are:
+
+1. David Ferrer   
+2. Novak Djokovic 
+3. Roger Federer 
+4. J.M Del Potro   
+5. Tomas Berdych  
+6. Nicolas Almagro 
+7. Andy Murray     
+8. JW Tsonga  
+9. Janko Tioservic   
+10. Milos Raonic
+
+#### Observations
+
+David Ferrer won the highest number of matches and Rafa Nadal is missing from the top 10 wins. These two unexpected results could be down to the number of matches played - David Ferrer might have played far  more matches than everyone else. I'll have a look at the number of macthes played and also check the number of wins per matches played.
+
+
+#### Win Ratio - Is the number of wins just down to the number of matches played?
+
+The win to matches played ratio might shed a better light on who wins most of the matches they play.
+
+Again, there's no column for this so I'll have to make one. I'll need to count  the player names from both the winner_name and loser_name columns to get the total number of matches.
+
+```{r,}
+
+## select the winner id and names
+w_count <- atp_2012 %>% select(winner_id,winner_name)
+names(w_count)[names(w_count) =="winner_id"] <- "player_id"
+names(w_count)[names(w_count) =="winner_name"] <- "player_name"
+
+## Do the same for loser id and names
+l_count <- atp_2012 %>% select(loser_id,loser_name)
+names(l_count)[names(l_count) =="loser_id"] <- "player_id"
+names(l_count)[names(l_count) =="loser_name"] <- "player_name"
+
+## Merge the two dataframes together 
+merged_count <- rbind(w_count,l_count)
+merged_count <- as.data.frame(merged_count)
+
+## group by player_id and sum the matches.
+count_player <- group_by(merged_count, player_id, player_name)
+matches_by_player <- summarize(count_player, total_matches = n())
+
+## merge with earlier daatset on player_name
+merged_count_wins <- merge(matches_by_player,players_win, 
+                           by ="player_name", all.x= TRUE)
+## replace NA's with 0 and add win ratio column
+merged_count_wins$wins[is.na(merged_count_wins$wins)] <- 0 
+merged_count_wins <- merged_count_wins %>% 
+                     mutate(win_ratio = ((wins/total_matches)*100 ))
+
+```
+```{r,}
+#### Look at players with more than 13 wins,
+
+
+F = 13
+
+p <- ggplot(subset(merged_count_wins, wins > F), 
+            aes(x = reorder(player_name, wins), 
+                y = win_ratio, fill = win_ratio))
+p <- p + geom_bar(width=1, colour="white",stat="identity")
+p <- p + geom_text(aes(label=wins),
+                    color="black",
+                   hjust=0.6,vjust=0.2,  size=2)
+p <- p + theme(axis.text.x = element_text(angle=90,hjust=1, vjust=0.2), 
+               legend.position="none")
+p <- p + scale_y_continuous(breaks = seq(0, 100, 10)) 
+#p <- p + coord_flip()
+p
+
+
+
+```
+
+#### Observations
+
+Using the win ratio(for players with more than 13 wins), the data looks more normalised than before. I used the number of wins as the label so the win ratio could easily be seen in comparison to the number of wins.We can see that although David Ferrer has a high win ratio, he didn't have the best, with Novak Djovokic, Roger Federer and Rafa Nadal having higher win ratios. I wondered about Rafa Nadal when he ddin't appear in the top 10 wins but his win ratio was second best! 
+
+To the left is Jerzy Janwoicz, who has a higher win ratio than some of the guys with the top 10 wins : Tomas Berdych and Nicolas Almagro even though they had more wins.
+
+Is the win ratio a better judge of the ability of a player to win matches than the number of wins? Or is slighlty affected by number of matches played?  Next, I'll take a look at who had the most tournament wins, will it be players with the most wins or players with the highest win ratio?
+
+
+#### Tournement Wins 
+There's actually no variable in the dataset showing who won torunaments but we have rounds which show the final round and the winner of the final round will be the tournament winner. 
+
+```{r,}
+tour_wins <- atp_2012 %>% select(tourney_id,tourney_name,tourney_level, 
+                                 surface,winner_name,loser_name, 
+                                 winner_seed,round) %>%
+filter(round == 'F')
+
+p <- ggplot(tour_wins, aes(x = winner_name)) + 
+  geom_bar(aes(y = ..count..), stat = "count", color = I('black'), 
+           fill = I('#099DD9'))
+p <- p + theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.2, 
+                                          family="Times", colour="darkred"))
+p <- p + scale_y_continuous(breaks = seq(0, 10, 1))  
+p
+
+```
+
+#### Observations
+
+1. David Ferrer won the most tournaments - 7 (and he also had the highest number of wins)
+2. Roger Federer and Novak Djokovic came in tied second place, with Juan Monaco,JM Del Potro and Rafa Nadal on 4 each. 
+
+It appears that the the number of matches won correspinds largely win the number of Tournament wins. This is also true with the win ratio. The 5 players with the highest win ratio were also among the top 7 players with the highest number of tournaments wins. However, with Rafa Nadal winning 4 tournaments having played fewer matches suggests that win ratio might be a better *suggestion* of who would win more tournaments. Also here is Juan Monaco - who isn't in the top 10 wins or the top ten win_ratio, yet he won 4 tournaments. 
+
+#### Tournament wins - Juan Monaco - Where ?
+
+The tours_win dataset has surface and tournel_level variables which show the type of surface the tournament was won on and the level of tournament. 
+
+```{r,}
+
+qplot(x = winner_name, 
+      data = tour_wins, 
+      xlab ='winner_name', color = I('black'), fill = I('#099DD9')) + 
+      scale_y_continuous(breaks = seq(0, 26, 2)) +
+      theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.2, 
+                                       family="Times", colour="darkred")) +
+      facet_wrap(~ surface, scales="free")
+
+qplot(x = winner_name, 
+      data = tour_wins, 
+      xlab ='winner_name', color = I('black'), fill = I('#099DD9')) + 
+      scale_y_continuous(breaks = seq(0, 26, 2)) +
+      theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.2, 
+                                       family="Times", colour="darkred")) +
+      facet_wrap(~ tourney_level, scales="free")
+
+
+```
+
+#### Observations
+
+Juan Monaco won all his tournaments at the A Tour level and also won 3 of his 4 tournaments on Clay. I can also see Rafa Nadal only won tournaments on Clay. Novak Djokovic also won all of his 6 titles on Hard Courts. D. Ferrer, Roger Federer were the only players to win across all surfaces. It's still not too apparent why Juan Monaco was able to win that many tournaments, without being in the top 10 of wins and win_ratio but it would appear that some players do seem to perform very well on particular surfaces. What were the percentage wins of these players on the various surfaces?
+
+#### Players win ratio per surface for the tournament winners
+
+```{r}
+
+## select and rename variables
+pl_win_by_surface <- as.data.frame(table(atp_2012$winner_name, 
+                                              atp_2012$surface))
+names(pl_win_by_surface)[names(pl_win_by_surface) =="Var1"] <- "player_name"
+names(pl_win_by_surface)[names(pl_win_by_surface) =="Var2"] <- "Surface"
+names(pl_win_by_surface)[names(pl_win_by_surface) =="Freq"] <- "Surface_wins"
+
+## Change dataframe to wide format
+
+players_win_by_surface_gp <- dcast(data=pl_win_by_surface, 
+                                   formula = player_name ~ Surface)
+players_win_by_surface_gp$total <- rowSums(players_win_by_surface_gp[-1])
+
+## get percentage_win ratio for each surface
+
+players_win_by_surface_gp <- players_win_by_surface_gp %>% 
+mutate(w_pc_clay = ((Clay/total) *100),w_pc_carpet =((Carpet/total)*100)) %>% 
+mutate(w_pc_Grass = ((Grass/total) * 100), w_pc_Hard = ((Hard/total) * 100))
+
+#### change back to Long and look at players with more than 15 wins on tour
+
+players_win_by_surface_15 <- players_win_by_surface_gp %>% filter(total > 15)
+
+players_win_by_surface_gp.long <- gather(players_win_by_surface_15,
+surface_type, pc_s_wins, -player_name,-Carpet, -Clay, -Grass, -Hard, -total)
+
+## Subet players with tournament wins
+
+tours_wins_surface <- players_win_by_surface_gp.long %>% 
+                      filter(player_name %in% tour_wins$winner_name)
+
+
+tours_wins_surface <- tours_wins_surface %>% 
+                     filter(pc_s_wins != 0)
+
+ggplot(tours_wins_surface,aes(x=factor(player_name),
+y=pc_s_wins,label=paste(round(pc_s_wins),"%"),fill=factor(surface_type))) + 
+geom_bar(stat="identity") + geom_text(position="stack",
+                                      aes(ymax=1),vjust=1.2, size=2.5) + 
+theme(axis.text.x = element_text(angle=90, hjust=1, 
+                                 vjust=0.2, family="Times",  colour="darkred")) 
+
+
+
+
+
+```
+
+This shows the percentage of the total wins that each player had per surface. So for example, 55% of rafa Nadal's wins came on Clay and 67% of Novak Djovokic's win came on clay. We can see some players like Nicolas Amalgro, Tomas Belluci and Juan Monaco having a large perctange of their wins on clay. Also, Sam Querrey, Jurgen Melzer, Alexander Dolgpolov had a large percentage of thier wins of Hard. This does show that some players tend to win more on particular surfaces. However, they could also have played more matches on these surfaces because they preferred it.  I would like to see thier win_ratio per surface i.e For the number of matches they played on each surface, what was thier win_ratio?
+
+```{r}
+
+## select the winner id and names
+ws_count <- atp_2012 %>% select(winner_id,winner_name,surface)
+names(ws_count)[names(ws_count) =="winner_id"] <- "player_id"
+names(ws_count)[names(ws_count) =="winner_name"] <- "player_name"
+
+## Do the same for loser id and names
+ls_count <- atp_2012 %>% select(loser_id,loser_name, surface)
+names(ls_count)[names(ls_count) =="loser_id"] <- "player_id"
+names(ls_count)[names(ls_count) =="loser_name"] <- "player_name"
+
+## Merge the two dataframes together 
+merged_scount <- rbind(ws_count,ls_count)
+merged_scount <- as.data.frame(merged_scount)
+
+## Count the matches for each player
+m_by_surface <- as.data.frame(table(merged_scount$player_name,
+                                          merged_scount$surface))
+names(m_by_surface )[names(m_by_surface) =="Var1"] <- "player_name"
+names(m_by_surface )[names(m_by_surface) =="Var2"] <- "Surface"
+names(m_by_surface )[names(m_by_surface)=="Freq"]<-"Surface_Matches"
+
+## Change the data to wide foramt
+m_by_surface_gp <- dcast(data=m_by_surface , 
+                               formula = player_name ~ Surface)
+m_by_surface_gp$total <- rowSums(m_by_surface_gp[-1])
+
+### rename so we can merge with wins_per_surafce data frame
+
+names(m_by_surface_gp)[names(m_by_surface_gp)=="Carpet"] <- "Carpet_Total"
+names(m_by_surface_gp)[names(m_by_surface_gp)=="Grass"] <- "Grass_Total"
+names(m_by_surface_gp)[names(m_by_surface_gp) =="Clay"] <- "Clay_Total"
+names(m_by_surface_gp)[names(m_by_surface_gp) =="Hard"] <- "Hard_Total"
+names(m_by_surface_gp)[names(m_by_surface_gp) =="total"] <- "Matches_Total"
+
+combined_surface <- merge(m_by_surface_gp,players_win_by_surface_gp, 
+                          by ="player_name", all.x= TRUE)
+
+## perform win_ratio calculations
+wr_by_surface <- combined_surface %>% 
+mutate(wr_clay = ((Clay/Clay_Total)), 
+       wr_carpet = ((Carpet/Carpet_Total))) %>% 
+mutate(wr_Grass = ((Grass/Grass_Total)), 
+       wr_Hard = ((Hard/Hard_Total)))
+
+## Change Nan's to 0
+wr_by_surface$wr_clay[is.nan(wr_by_surface$wr_clay)] <- 0
+wr_by_surface$wr_carpet[is.nan(wr_by_surface$wr_carpet)] <- 0
+wr_by_surface$wr_Grass[is.nan(wr_by_surface$wr_Grass)] <- 0
+wr_by_surface$wr_Hard[is.nan(wr_by_surface$wr_Hard)] <- 0
+
+wr_by_surface_updated <- wr_by_surface %>% 
+  select(wr_clay,wr_carpet,wr_Grass,wr_Hard,player_name,Matches_Total,total)
+
+## Subet players with tournament wins
+
+tours_wr_surface <- wr_by_surface_updated %>% 
+                     filter(player_name %in% tour_wins$winner_name)
+
+
+tours_wr_surface.long <- gather(tours_wr_surface, 
+                                surface_type, wr_by_surface, 
+                                -player_name,-Matches_Total, -total)
+## rename wins per surface
+names(tours_wr_surface.long)[names(tours_wr_surface.long)
+                             =="wr_by_surface"] <- "surface_win_ratio"
+
+## I removed every row with 0 because they were causing issue withe the graph display
+
+tours_wr_surface.long <- tours_wr_surface.long %>% 
+                     filter(surface_win_ratio != 0)
+
+ggplot(tours_wr_surface.long,
+       aes(x=factor(player_name),
+           y=surface_win_ratio,label=paste(round(surface_win_ratio * 100),"%"),
+           fill=factor(surface_type))) + 
+     geom_bar(stat="identity") + 
+     geom_text(position="stack", vjust=1.2, size = 2.5) + 
+     theme(axis.text.x = element_text(angle=90, 
+                                      hjust=1, vjust=0.2, 
+                                      family="Times",  colour="darkred"))+
+scale_y_continuous(labels = scales::percent)
+
+```
+
+#### Observations
+
+OK...This looks more like what I wanted to see for the tournament winners. The y axis has high percentage range beacuse it's showing the win ratio per 3 surfaces so that's a 300% max value. Rafa Nadal with 4 Clay tournaments won 96% percent of all matches he played on Clay. Novak Djovokic won 91% of matches he played on Hard courts. Roger Federer had high percentages across all surfaces as did David Ferrer. Juan Monaco with 78% - not a lot players with higher win ratios on clay -  won more tournaments on clay than Tomas Berdych, Roger Federer and Novak Djokovic  who all had higher win_ratios on the surface. Novak and Roger's high win_ratio on Hard, did translate to the  highest tournament wins on the surface respectively.
+
+
+There are some players like Tomas Berdych who had high win ratios on Clay or Hard for instance but didn't quite translate to Tournament wins? Rafa Nadal also had a high win ratio on Hard Court, only behind Roger and Novak, yet he didn't win any Hard court tournaments. These players might have been getting to a lot of finals or semi-finals but not actually winning the tournament.
+
+
+#### Dataset Update
+
+I'll add tournament_wins for each player to the merged_count_wins  so I can build a new dataframe of variables to test correlations with.
+
+```{r}
+players_tours_win <- as.data.frame(table(tour_wins$winner_name))
+
+##Change the name of the column
+names(players_tours_win)[names(players_tours_win) =="Var1"] <- "player_name"
+names(players_tours_win)[names(players_tours_win) =="Freq"] <-"tournament_wins"
+###Merge the Data frame
+atp_player_data <-  merge(merged_count_wins,players_tours_win,
+                          by ="player_name", all.x= TRUE)
+### replace NA's of tournament wins with 0
+atp_player_data$tournament_wins[is.na(atp_player_data$tournament_wins)] <- 0 
+```
+```{r, echo=TRUE}
+
+str(atp_player_data)
+
+```
+
+Now that that's complete, I'll like to take a quick look at wins across the different levels of tournament. 
+
+#### Tournament Types
+
+The  ATP tour website describes these torunament level types:
+
+* C- Challenger - 2nd Tier
+* A - ATP Tour level - 1st Tier (Ranking points depends draw size: 500 or 250 points)
+* D - Davis Cup - International Country competition
+* F - Futures - Third and 4th Tier of Tennis
+* G - Grandslam - 1st Tier (Most Prestigious - Winner 2000)
+* M - Masters - 1st Tier  (2nd Most Prestigious - Winner 1000 points)
+
+So let's look at the Tournement_level variable.
+
+```{r tourney_level, echo=TRUE}
+
+summary(atp_2012$tourney_level)
+
+```
+
+Clearly, there were more matches at the ATP general level, with the next highest being the next highest being Grandslams and Masters. 
+
+```{r}
+## select the variables needed and rename after tabling the data.
+players_win_by_tour <- as.data.frame(table(atp_2012$winner_name, 
+                                           atp_2012$tourney_level))
+names(players_win_by_tour)[names(players_win_by_tour) 
+                           =="Var1"] <- "player_name"
+names(players_win_by_tour)[names(players_win_by_tour) 
+                           =="Var2"] <- "Tournament_Level"
+names(players_win_by_tour)[names(players_win_by_tour) 
+                           =="Freq"] <- "Total_wins"
+
+
+```
+
+```{r}
+
+## Have a look at the data
+str(players_win_by_tour)
+
+##Draw plot
+p <- ggplot(aes(x = player_name, y=Total_wins, fill = Tournament_Level),
+            data=subset(players_win_by_tour,Total_wins > 5)) +
+     geom_bar(stat="Identity")
+p <- p + theme(axis.text.x = element_text(angle=90, 
+                                          hjust=1, vjust=0.2, 
+                                          family="Times", colour="darkred"))
+p <- p + scale_y_continuous(breaks = seq(0, 80, 5))
+p
+
+```
+
+#### Observations
+
+I subsetted the data to only look at players who had more than 5 wins on the Tour that year and I noticed a few things:
+
+1. Most players on Tour have a lot of thier wins at the ATP Tournament Level with close to 70% of these players having wins only at that level. Although it's not surprisng that most players have more wins at this level, I didn't quite expect that quite so many would have wins only at this level.
+
+2. Players with higher number of wins, have a good mix of Masters and Grandslam wins.
+
+
+#### Player seeds
+
+Next, I'd like to look at it winner_seed. This shows the seed (rank for tournament) of the winner who won the matches. 
+
+```{r, echo=TRUE}
+summary(atp_2012$winner_seed)
+
+```
+
+```{r}
+str(atp_2012$winner_seed)
+
+```
+
+Looking at this summary, I was a bit thrown for a moment at the large number of NA's. However, A seed is different from a ranking and there are about a 1/4 seeds per draw size.  So drawsize 128 would have 32 seeds, drawsize 96 would have 16 seeds and so on.
+
+```{r}
+
+
+qplot(x = winner_seed, 
+      data = subset(atp_2012,!is.na(winner_seed)), 
+      xlab ='winner_seed', binwidth = 1,color = I('black'), 
+      fill = I('#099DD9')) +
+      scale_x_continuous(breaks = seq(1, 32, 1))
+      
+
+```
+
+This distribution is skewed to the right...There are far more winners who are seeded in from 1-8. With Most matches being won by the player seeded Number one for the tournament. In sum, higher seeded players win more matches than lower ranked seed players. Quel (not) Surprise!  What about for tournaments? Are seeds more likely to win tournaments?
+
+```{r}
+## Change NA to Unseeded in Tour wins Data frame
+tour_wins$winner_seed[is.na(tour_wins$winner_seed)] <- "Unseeded"
+qplot(x = winner_seed, 
+      data = tour_wins, 
+      xlab ='winner_seed', color = I('black'), fill = I('#099DD9')) + 
+      scale_y_continuous(breaks = seq(0, 26, 2))
+```
+
+Wow!,In 2012 seeds were more likely to win especially if you were ranked 1 - 8!. Only 6 tournaments were won by Unseeded players and I bet they were all ATP - A level tournaments as well!
+
+```{r}
+
+qplot(x = winner_seed, 
+      data = tour_wins, 
+      xlab ='winner_seed', color = I('black'), fill = I('#099DD9')) + 
+      scale_y_continuous(breaks = seq(0, 26, 2)) +
+      facet_wrap(~ tourney_level, scales="free")
+      
+
+```
+
+#### Observations
+
+Yes, all the tournaments won by unseeded players were ATP level A general tournaments. For the Masters and Grandslams,the seeds ranked 1-4 won all the tournaments at that level. That's some consistency!
+
+On the ATP tour in 2012, Seeded players were most likely to win tournaments. 
+
+
+#### Summary Observations
+
+So far, I've looked at the number of wins  and the win ratio for the players. I noticed that the win_ratio was likely a better determinant of the ability of a player to win matches as it showed the number of wins per matches played. Also, the players with the most wins and highest win ratio won the most number of tournaments.
+
+Also, some players did very well on certain surfaces having a very high win ratio on those surfaces and in most cases that translated to toruanment wins; However, players did also have high win ratios on certain surfaces with no tournaments wins to show.
+
+One of the most interesting observations was that most players with 5 wins and above only won matches at the ATP level. I expetced there to be a better distribution of wins across tournament types. It seemed that a few players were winning most matches at the higher tournament levels. This was more noticeable in the number of tournaments won by seeded players at the  higher tournaments levels. Unseeded players won only ATP level tournaments.
+
+
+### Match Winners and Losers
+
+It's time to look at variables that involve both the winners and losers of matches. Are there are any variables that stand out or can show the differences between winners and losers? 
+
+##### First and Second Serve percentage - Is there a difference between Match winners and Losers?
+
+Variables:
+
+* 1stIn - Number of First serves in
+* svpt  - total serve points 
+* 1stWon - Number of points won on 1st serve
+* 2ndWon - Number of points won on 2nd serve
+* df - number of double faults
+
+
+The values for these 4 variables  are absolute values and could be skewed depending on how long the match was or how many sets the players had to play. It would be better to calculate the percentage of first serve points won based on the total amount of first serves put in play and the same with the second serve.
+
+
+```{r}
+
+### Get the Number of 2nd serves in by substracting the 1st serves in from total number of serve points and double faults.
+### Double faults show that neither 1st or 2nd serve went in
+### Calculate the percentages for both winners and losers and save back to original dataset
+
+atp_2012 <- atp_2012 %>% 
+mutate(w_2ndIn = (w_svpt - w_1stIn - w_df ), 
+       l_2ndIn = (l_svpt - l_1stIn - l_df )) %>%
+mutate(w_1stpwon = ((w_1stWon/w_1stIn) * 100), 
+       l_1stpwon = ((l_1stWon/l_1stIn) * 100)) %>%
+mutate(w_2ndpwon = ((w_2ndWon/w_2ndIn) * 100), 
+       l_2ndpwon = ((l_2ndWon/l_2ndIn) * 100))
+
+## Now I have 1st and 2nd serve percentage points
+### select 1st serve percenage points for winners and loser of each match and change to long format
+fs_serve_won <- atp_2012 %>% select(w_1stpwon,l_1stpwon)
+fs_serve_won_long <- gather(fs_serve_won, player_type, 
+                            fs_percentage_won, w_1stpwon:l_1stpwon)
+
+
+
+
+
+```
+
+```{r}
+summary(fs_serve_won_long)
+```
+
+
+##### First serve percentage
+
+```{r}
+ggplot(fs_serve_won_long, aes(fs_percentage_won, fill = player_type)) + 
+geom_histogram(alpha = 0.5, binwidth = 1, aes(y = ..count..), 
+               position = 'identity') +
+scale_x_continuous(breaks = seq(10, 100, 10))
+
+
+qplot(x = player_type,y = fs_percentage_won,
+      data = fs_serve_won_long, 
+      xlab ='player_type',
+      ylab = 'First server percentage points won',
+      geom = 'boxplot', color = player_type) +
+      scale_y_continuous(breaks = seq(0, 100, 5))
+  
+
+```
+
+#### Observations
+
+Looking at the histogram, The first serve percentage points won data appears to be normally distributed for both winners and loser; I plotted the winner and loser first serve percentage on the same graph so it could be easier to see the differences immediately. 
+
+Majority of the first serve percentage points won falls between 60% and 90%. However, we can see that the green colour shades more to the left showing that there are more values of green to the left which indicates a lower percentage of  points won on the first serve by players that lose. Also, the pinkish colour shades more the right, with all winners of matches having 50% or  higher first serve percentage.
+
+The box plot shows that the median for the first serve perctentage points won for match winners is almost 10 points higer than those of match losers. Also, concentration of values for the top 25% shows a bigger number for the winners than losers. On average, winners have higher first percentage points won.
+
+
+##### First serve percentage points - Match wins
+
+The high_fsperc_won is a new dataframe with 1st serve percentage points won for both winners and losers. Each observation is a match and I checked who had the higher 1st serve percentage points won in the match. I then recoreded whether it was the winner or loser of the match in the player type column. 
+
+
+```{r get winner_1st_Serve , echo=FALSE}
+###
+## Finding out whether winners or losers had the higher percentage first serve.
+
+high_fsperc_won <-fs_serve_won %>% select(w_1stpwon,l_1stpwon) %>%
+mutate(player_type = ifelse(w_1stpwon > l_1stpwon, "Winner", "Loser"))
+
+
+summary(high_fsperc_won)
+
+qplot(x = player_type, 
+      data = subset(high_fsperc_won,!is.na(player_type)), 
+      xlab ='Player_type',color = I('black'), fill = I('#099DD9'))
+
+```
+
+#### Observations
+
+The bar graph shows that a player is 4 times as likely to win a match when they have a higher first serve percentage. Of the matches played, over 2500 were won by players with a higher first serve percentage points won.
+
+
+```{r}
+
+##### Second Serve Percentage points
+### select the second serve variables for winners and losers and change to long format
+
+ss_serve_won <- atp_2012 %>% select(w_2ndpwon,l_2ndpwon)
+ss_serve_won_long <- gather(ss_serve_won, player_type, 
+                            ss_percentage_won, w_2ndpwon:l_2ndpwon)
+
+
+summary(ss_serve_won_long)
+
+ggplot(ss_serve_won_long, aes(ss_percentage_won, fill = player_type)) + 
+geom_histogram(alpha = 0.5, binwidth = 1, aes(y = ..count..), 
+               position = 'identity') +
+scale_x_continuous(breaks = seq(10, 100, 10))
+
+
+qplot(x = player_type,y = ss_percentage_won,
+      data = ss_serve_won_long, 
+      xlab ='player_type',
+      ylab = 'Second Serve Percentage points won',
+      geom = 'boxplot', color = player_type) +
+      scale_y_continuous(breaks = seq(0, 100, 5))
+
+
+
+```
+
+#### Observations
+
+The median for the second serve percentage won for winners is almost 10 points higher than that for the losers. Also, the histogram shows the winner - shaded pink - with more values to the right of histogram indicating that players who won matches had won more points on thier second serve. The average and median of all second serve perctange points won are 56.16 and 56.25 respectively, looking at the box plot, majority of the match winners had higher values higher than this.
+
+In Tennis Matches, players get a two chances to serve for each point. You only get a second serve if you miss the first. If the serving player missed the second serve, the opposing player is automatically awarded a point.  Players usually have very fast and powerful first serves making  it harder for the opposing player to return it the serve.Also, players take more risks because they know they have a another chance. On the second serve however, if you lose it, you know that the oppsoing player will win the point, so player take less risk and the serve is therefor slower and less powerful. This gives the opposing player a better chance to attack the serve and win more points of it. 
+
+This is most likely the reason why we have this large difference in 2nd serve percentage points won between winners and losers. The players who are able to win more points on thier (weaker) second serves win more matches.
+
+
+###### Second Serve Percenatage - Match Wins
+
+```{r}
+
+high_ssperc_won <- ss_serve_won %>% select(w_2ndpwon,l_2ndpwon) %>%
+mutate(player_type = ifelse(w_2ndpwon > l_2ndpwon, "Winner", "Loser"))
+
+
+summary(high_ssperc_won)
+
+qplot(x = player_type, 
+      data = subset(high_ssperc_won,!is.na(player_type)), 
+      xlab ='Player_type',color = I('black'), fill = I('#099DD9'))
+
+
+```
+
+Again, it can be seen here that when a player has a higher second server percentage points won, he/she was more likely to win the match - almost 4 times as likely!
+
+#### Break Points  
+
+###### Break points faced
+
+Break point faced shows the amount of opportunities the opponent had to break serve. Each time a player wins a service game (on serve i.e the player is serving) they get awared a point,if the opposing player wins ie. breaks hte opposing player's serve), the point is added to them isntead.
+
+The variables are:
+
+* bpSaved = break point saved
+* bpFaced = break point faced
+
+```{r}
+## select and ## Collapse the variables
+break_points_faced <- atp_2012 %>% select(w_bpFaced,l_bpFaced)
+bp_faced_long <- gather(break_points_faced, player_type, 
+                        bp_faced, w_bpFaced:l_bpFaced)
+
+
+```
+
+```{r}
+summary(bp_faced_long)
+
+ggplot(bp_faced_long, aes(bp_faced, fill = player_type)) + 
+geom_histogram(alpha = 0.5, binwidth = 0.5,aes(y = ..count..), 
+               position = 'identity') +
+scale_x_continuous(breaks = seq(0, 30, 1))
+
+
+qplot(x = player_type,y = bp_faced,
+      data = bp_faced_long, 
+      xlab ='player_type',
+      ylab = 'bp_faced',
+      geom = 'boxplot', color = player_type) +
+      ##coord_cartesian(ylim = c(0, 35))
+      scale_y_continuous(breaks = seq(0, 35, 1))
+
+```
+
+##### Observations
+
+The green shade for losers does edge to the right indicating a higher number of opportunities presented to the opponent to the break the serve. The histogram for winners edges closer to the left and we can see that players who won matches generally faced less break points.
+
+The median for break points faced by winner is 4 while those for losers is about 8.75% or less of the winners face 7 breakpoints  or less which is just slightly more than the median and mean of all the players.This definately makes sense because the less opportunitues your opponent has of breaking your serve, the less likely he is to break them. And if he/she can't break your serve, it tougher for them to beat you. 
+
+It would be interesing to the relationship between winners and percentage of break points saved.
+
+#####  Percentage break points saved
+```{r}
+## select and ## Collapse the variables
+
+atp_2012 <- atp_2012 %>% 
+mutate(w_per_bpsaved = ((w_bpSaved/w_bpFaced) * 100), 
+       l_per_bpsaved = ((l_bpSaved/l_bpFaced) * 100))
+per_bpSaved <- atp_2012 %>% select(w_per_bpsaved,l_per_bpsaved)
+per_bpSaved_long <- gather(per_bpSaved, player_type, 
+                           percentage_bpSaved, w_per_bpsaved:l_per_bpsaved)
+
+
+
+
+
+```
+
+```{r}
+summary(per_bpSaved_long)
+
+ggplot(per_bpSaved_long, aes(percentage_bpSaved, fill = player_type)) + 
+geom_histogram(alpha = 0.5, aes(y = ..count..), position = 'identity') 
+
+```
+
+##### Observations 
+
+I expected a clearer distinction between winners and losers in general. However, one thing that was clear though was that, far more winners saved 100% of break points that they faced; at least over 500 winners. Again, if a player saves all the break points that they face, then they are very unlikely to lose the matches. Those who saved 100% break points and lost thier matches would have done so in tie-breaks. 
+
+##### Summary Correlations
+
+
+
+```{r}
+#win_stats <- ggpairs(atp_player_data, c(1,3:6))
+match_win_stats <- ggpairs(atp_player_data, c(3:6))
+match_win_stats
+
+```
+
+#### Three Final Plots
+
+In the sections above, I tried to work through the different variables to find those which those which could show me interesting patterns about the winners(and losers) on Tour in 2012. I'll choose the 3 which I think were most interesting (and surprising) to me.
+
+```{r}
+
+#### Look at players with more than 13 wins, 
+F = 13
+
+p <- ggplot(subset(merged_count_wins, wins > F), 
+            aes(x = reorder(player_name, wins), y = win_ratio, fill=win_ratio))
+p <- p + geom_bar(width=1, colour="white",stat="identity")
+p <- p + geom_text(aes(label=wins),
+                    color="black",
+                   hjust=0.6,vjust=0.2,  size=2)
+p <- p + theme(axis.text.x = element_text(angle=90,hjust=1, vjust=0.2), 
+               legend.position="none")
+p <- p + labs(x = "Player name", y = "Win Ratio (%)")
+p <- p + labs(title = "Ratio of wins to Matches")
+p
+
+
+
+```
+
+I include this plot because it was plot that first showed the differences between match wins and win ratio. It also got me wondering how players did across different surfaces and how that might affect thier tournament wins.
+
+```{r}
+
+tours_wr_surface <- wr_by_surface_updated %>% 
+                     filter(player_name %in% tour_wins$winner_name)
+
+
+tours_wr_surface.long <- gather(tours_wr_surface, 
+                                surface_type, wr_by_surface, 
+                                -player_name,-Matches_Total, -total)
+## rename wins per surface
+names(tours_wr_surface.long)[names(tours_wr_surface.long)
+                             =="wr_by_surface"] <- "surface_win_ratio"
+
+## I removed every row with 0 because they were causing issue withe the graph
+## display
+
+tours_wr_surface.long <- tours_wr_surface.long %>% 
+                     filter(surface_win_ratio != 0)
+
+
+
+p <- ggplot(tours_wr_surface.long,
+            aes(x=factor(player_name),y=surface_win_ratio,
+                label=paste(round(surface_win_ratio * 100),"%"),
+                fill=factor(surface_type)))
+p <- p + geom_bar(stat="identity") + 
+geom_text(position="stack", aes(ymax=1),vjust=1.2, size = 2.5) 
+p <- p + theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.2, 
+                                          family="Times",  colour="darkred"))
+p <- p + scale_y_continuous(labels = scales::percent)
+p <- p + labs(x = "Player name", y = "Surface_win_Ratio(%)")
+p <- p + labs(title = "Win ratio for Tournament winners by Surface")
+p <- p + labs(fill ='Surface Type')
+p
+
+
+
+```
+
+This plot goes further to show the percentage of wins on each surface for players who won the most tournaments. It helped explain why some players like Djokovic with 91% win on Hard court, won more hard court tornaments than anyone else - the same with Rafa Nadal on Clay but it also raised a some questions - Some players with High win ratio on certain surfaces didn't win any tournaments on those surfaces. 
+
+
+```{r}
+
+
+p <- ggplot(fs_serve_won_long, aes(fs_percentage_won, fill = player_type)) 
+p <- p + geom_histogram(alpha = 0.5, binwidth = 1, aes(y = ..count..), 
+                        position = 'identity') 
+p <- p + scale_x_continuous(breaks = seq(10, 100, 10))
+p <- p + labs(x = "Percentage points won on first serve")
+p <- p + labs(title = "Percenatge points won on first serve by winners 
+              and Losers")
+p
+
+
+```
+
+Although, I started out looking at winners of matches across the season, looking at vairables that show what causes players to win individual matches proved to be very interesting.I really wanted to put the first and second server perctentage plots togther here but I had to go with one and I went with the first serve percentage. There was a clear distinction showing that most winners of matches had 50% or higher first serve percentage.
+
+
+### Reflections
+
+#### Issues
+
+Due to the high number of number of players and variables; it was very difficult to use ggpairs to look at correlations and I spent a lot time investigating and then discarding certian variables. I also had to do a lot of data manipulations because the data was not always in the format that I needed.
+
+Additionally, when I started out, I thought I might be able to get a model to predict the winners of matches, but I didn't think I had enough winner or loser data; I would have liked to have a breakdown how points where won : forehand winners, backhand winners , unforced errors etc for winners and losers. Furthermore, With the dataset I had, it was very different to the way the price prediction on the course worked; and I would need to predict who would win matches againts other players! Therefore each player would need some sort of score based on the model to predict thier ability to not only win matches but beat the other player. 
+
+I think I would need more data and more knowledge of Modelling with Categorical variables to create a model.
+
+##### Conclusion
+
+Starting out with this data from the ATP Tour in 2012, I was interested in discovering what really influenced players winning matches. A number of things stood out to me. Firstly, the amount of tournaments won my seeds especially at the Masters and Grandslam levels. These tournaments are very difficult to win and while it  may make sense that the better players should naturally win these tournaments, the fact that it's tough to win means the same players usually can't win most of them. In 2012, however, The top 4 seeds won most of the Granslams and Masters and these were actually the same group of players. Being Seeded especially 1-4, meant a player was very likely to win matches and tournaments.
+
+Secondly, In comparing winners and losers per match - it was clear that having a higher percentage points won on the first serve meant the player was more than 4 times likely to win the match. In this case, it's not just having a high value - over 50% in general. 
+
+Lastly, there were some players with high win_ratios per surface who didn't quite turn those into tournament wins. They appears to be some intagibles here that are not recorded that could be influencing the inability to cross the final Hurdle - Mental Toughness ? Experience?. I would be interested in expoloring this dataset further. 
+
+
+
